@@ -1,78 +1,58 @@
-﻿# XDV Consensus
+# XDV Consensus
 
 Version: 0.1.0
-Status: planned
+Status: active
 Language: Dust Programming Language (DPL)
 
 ## Specification Alignment
 
-Primary specification: XDV-042 in xdv-spec.
+Primary specification: XDV-042 in `xdv-spec`.
 
-## Purpose
+Implemented focus for this milestone:
 
-Deterministic distributed consensus primitives and reconciliation.
+1. Deterministic reconciliation engine.
+2. PHI-assisted and K fallback consensus modes.
+3. Replay-equivalent decision validation.
 
-## Scope
+## Modules
 
-This project is responsible for:
+- `src/consensus_contracts.ds`
+  Contract constants and deterministic validation rules.
 
-- Implementing normative requirements defined by XDV-042.
-- Publishing deterministic behavior contracts for integration with xdv-os.
-- Providing reusable modules for cross-repo integration.
-- Supplying verification and conformance fixtures for regression control.
+- `src/consensus_reconcile.ds`
+  Deterministic reconciliation and tie-breaking engine.
 
-## Planned Deliverables
+- `src/consensus_phi_mode.ds`
+  PHI-assisted consensus activation/decision path.
 
-- phase-consensus, deterministic-fallback
-- Public APIs in src/
-- Test fixtures in tests/
-- Design and interface docs in docs/
+- `src/consensus_k_fallback.ds`
+  Deterministic K-based fallback path when PHI coherence fails.
 
-## Repository Layout
+- `src/consensus_replay.ds`
+  Replay-equivalence token generation and verification.
 
-- src/ : core module implementations.
-- tests/ : deterministic unit/integration/conformance fixtures.
-- docs/ : architecture, protocol, and usage documentation.
-- State.toml : workspace manifest.
-- changelog.md : release and milestone notes.
+- `src/consensus_tests.ds`
+  XDV-042 behavior tests for reconcile/mode/replay semantics.
 
-## Initial Module Plan
-
-- src/main.ds: project entrypoint and top-level orchestration.
-- src/contracts.ds: normative contract models and validators.
-- src/protocol.ds: wire/protocol semantics for external interfaces.
-- src/errors.ds: canonical error model and deterministic mapping.
-- src/tests.ds: local test harness entry surface.
-
-## Dependencies
-
-Current planned dependencies:
-
-- xdv-network, xdv-distributed-scheduler, xdv-sdbm
-- dust runtime/toolchain packages as required by integration profile
-
-## Integration Contracts
-
-- Must preserve deterministic ordering semantics.
-- Must avoid implicit cross-domain state mutation.
-- Must emit structured metadata for replay and audit paths.
-- Must remain compatible with xdv-os build and boot/runtime contracts.
+- `src/main.ds`
+  Bootstrap/startup/smoke/self-test entrypoints.
 
 ## Build
 
+```bash
 dust check xdv-consensus/src
+```
 
 ## Test
 
-dust test xdv-consensus/tests
-
-## Milestones
-
-1. M1: scaffold + contract models.
-2. M2: core pipeline implementation.
-3. M3: deterministic behavior and fixture hardening.
-4. M4: xdv-os integration and conformance gating.
+```bash
+dust check xdv-consensus/src/consensus_tests.ds
+dust check xdv-consensus/tests/consensus_replay_e2e.ds
+```
 
 ## Notes
 
-This project is initialized as a skeleton template and intentionally starts with minimal source implementation.
+- Consensus tie-breaking is deterministic and replay-stable.
+- PHI path never bypasses deterministic final reconciliation.
+- K fallback preserves ordering invariants after PHI instability.
+- Replay checks validate equivalent decision records from equivalent inputs.

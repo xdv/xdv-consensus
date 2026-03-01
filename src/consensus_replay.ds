@@ -1,0 +1,77 @@
+// File: consensus_replay.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-consensus: replay-equivalence checks for XDV-042 decisions.
+
+forge XdvConsensusReplay {
+
+    const STATUS_OK: UInt32 = 0;
+    const STATUS_REPLAY_MISMATCH: UInt32 = 1;
+
+    proc K::decision_record_token(
+        round_id: UInt64,
+        mode: UInt64,
+        decision: UInt64,
+        logical_time: UInt64,
+        participating_nodes: UInt64,
+        threshold: UInt64,
+        fault_events: UInt64,
+        alignment_meta: UInt64
+    ) {
+        if round_id == 0 {
+            return 0;
+        } else {
+            if decision == 0 {
+                return 0;
+            } else {
+                return (round_id * 1000000000000000)
+                    + (mode * 100000000000000)
+                    + (decision * 1000000000)
+                    + (logical_time * 1000000)
+                    + (participating_nodes * 10000)
+                    + (threshold * 100)
+                    + (fault_events * 10)
+                    + (alignment_meta - ((alignment_meta / 10) * 10));
+            }
+        }
+    }
+
+    proc K::replay_equivalent(record_a: UInt64, record_b: UInt64) {
+        if record_a == record_b {
+            return STATUS_OK;
+        } else {
+            return STATUS_REPLAY_MISMATCH;
+        }
+    }
+
+    proc K::rebuild_and_compare(
+        round_id: UInt64,
+        mode: UInt64,
+        decision: UInt64,
+        logical_time: UInt64,
+        participating_nodes: UInt64,
+        threshold: UInt64,
+        fault_events: UInt64,
+        alignment_meta: UInt64,
+        recorded_token: UInt64
+    ) {
+        let rebuilt = decision_record_token(round_id, mode, decision, logical_time, participating_nodes, threshold, fault_events, alignment_meta);
+        return replay_equivalent(rebuilt, recorded_token);
+    }
+
+    proc K::consensus_round_replay_check(
+        round_id: UInt64,
+        mode: UInt64,
+        decision_a: UInt64,
+        decision_b: UInt64,
+        logical_time: UInt64,
+        participating_nodes: UInt64,
+        threshold: UInt64,
+        fault_events: UInt64,
+        alignment_meta: UInt64
+    ) {
+        let record_a = decision_record_token(round_id, mode, decision_a, logical_time, participating_nodes, threshold, fault_events, alignment_meta);
+        let record_b = decision_record_token(round_id, mode, decision_b, logical_time, participating_nodes, threshold, fault_events, alignment_meta);
+        return replay_equivalent(record_a, record_b);
+    }
+}

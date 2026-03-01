@@ -1,0 +1,134 @@
+// File: consensus_contracts.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-consensus: XDV-042 contract constants and validators.
+
+forge XdvConsensusContracts {
+
+    const STATUS_OK: UInt32 = 0;
+    const STATUS_INVALID_MODE: UInt32 = 1;
+    const STATUS_INVALID_DOMAIN: UInt32 = 2;
+    const STATUS_INVALID_CAPABILITY: UInt32 = 3;
+    const STATUS_INVALID_NODE: UInt32 = 4;
+    const STATUS_INVALID_THRESHOLD: UInt32 = 5;
+    const STATUS_QUORUM_NOT_REACHED: UInt32 = 6;
+
+    const MODE_PHI_ASSISTED: UInt64 = 1;
+    const MODE_K_FALLBACK: UInt64 = 2;
+
+    const DOMAIN_K: UInt64 = 0;
+    const DOMAIN_Q: UInt64 = 1;
+    const DOMAIN_PHI: UInt64 = 2;
+
+    const CAP_SCOPE_K: UInt64 = 1;
+    const CAP_SCOPE_Q: UInt64 = 2;
+    const CAP_SCOPE_PHI: UInt64 = 4;
+
+    const NODE_ID_MIN: UInt64 = 1;
+    const NODE_ID_MAX: UInt64 = 999;
+
+    const ALIGNMENT_THRESHOLD_MIN: UInt64 = 1;
+    const ALIGNMENT_THRESHOLD_MAX: UInt64 = 100;
+
+    proc K::is_mode_valid(mode: UInt64) {
+        if mode == MODE_PHI_ASSISTED {
+            return STATUS_OK;
+        } else {
+            if mode == MODE_K_FALLBACK {
+                return STATUS_OK;
+            } else {
+                return STATUS_INVALID_MODE;
+            }
+        }
+    }
+
+    proc K::is_domain_valid(domain: UInt64) {
+        if domain == DOMAIN_K {
+            return STATUS_OK;
+        } else {
+            if domain == DOMAIN_Q {
+                return STATUS_OK;
+            } else {
+                if domain == DOMAIN_PHI {
+                    return STATUS_OK;
+                } else {
+                    return STATUS_INVALID_DOMAIN;
+                }
+            }
+        }
+    }
+
+    proc K::is_node_id_valid(node_id: UInt64) {
+        if node_id < NODE_ID_MIN {
+            return STATUS_INVALID_NODE;
+        } else {
+            if node_id > NODE_ID_MAX {
+                return STATUS_INVALID_NODE;
+            } else {
+                return STATUS_OK;
+            }
+        }
+    }
+
+    proc K::is_capability_valid(mode: UInt64, capability_scope: UInt64) {
+        if mode == MODE_PHI_ASSISTED {
+            if capability_scope == CAP_SCOPE_PHI {
+                return STATUS_OK;
+            } else {
+                return STATUS_INVALID_CAPABILITY;
+            }
+        } else {
+            if mode == MODE_K_FALLBACK {
+                if capability_scope == CAP_SCOPE_K {
+                    return STATUS_OK;
+                } else {
+                    return STATUS_INVALID_CAPABILITY;
+                }
+            } else {
+                return STATUS_INVALID_MODE;
+            }
+        }
+    }
+
+    proc K::is_alignment_threshold_valid(threshold: UInt64) {
+        if threshold < ALIGNMENT_THRESHOLD_MIN {
+            return STATUS_INVALID_THRESHOLD;
+        } else {
+            if threshold > ALIGNMENT_THRESHOLD_MAX {
+                return STATUS_INVALID_THRESHOLD;
+            } else {
+                return STATUS_OK;
+            }
+        }
+    }
+
+    proc K::max_faulty_nodes(total_nodes: UInt64) {
+        if total_nodes == 0 {
+            return 0;
+        } else {
+            return (total_nodes - 1) / 3;
+        }
+    }
+
+    proc K::deterministic_quorum_min(total_nodes: UInt64) {
+        if total_nodes == 0 {
+            return 0;
+        } else {
+            let f = max_faulty_nodes(total_nodes);
+            return total_nodes - f;
+        }
+    }
+
+    proc K::quorum_reached(total_nodes: UInt64, observed_votes: UInt64) {
+        let quorum_min = deterministic_quorum_min(total_nodes);
+        if quorum_min == 0 {
+            return STATUS_QUORUM_NOT_REACHED;
+        } else {
+            if observed_votes >= quorum_min {
+                return STATUS_OK;
+            } else {
+                return STATUS_QUORUM_NOT_REACHED;
+            }
+        }
+    }
+}

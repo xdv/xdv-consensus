@@ -1,0 +1,10 @@
+// File: consensus_replay_e2e.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-consensus: aggregate test entrypoint.
+
+forge XdvConsensusE2E {
+    proc K::run_all_tests() {
+        return XdvConsensusTests::K::run_all_tests();
+    }
+}

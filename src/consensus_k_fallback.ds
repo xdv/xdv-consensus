@@ -1,0 +1,121 @@
+// File: consensus_k_fallback.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-consensus: deterministic K-domain fallback for XDV-042.
+
+forge XdvConsensusKFallback {
+
+    const STATUS_OK: UInt32 = 0;
+    const STATUS_FALLBACK_NOT_REQUIRED: UInt32 = 1;
+    const STATUS_FALLBACK_FAILED: UInt32 = 2;
+
+    const MODE_K_FALLBACK: UInt64 = 2;
+    const CAP_SCOPE_K: UInt64 = 1;
+
+    const FAIL_NONE: UInt64 = 0;
+    const FAIL_COHERENCE_INSTABILITY: UInt64 = 1;
+    const FAIL_ENVELOPE_MISALIGNMENT: UInt64 = 2;
+    const FAIL_NODE_DESYNC: UInt64 = 3;
+    const FAIL_NETWORK_PARTITION: UInt64 = 4;
+    const FAIL_PROVIDER_FAILURE: UInt64 = 5;
+
+    proc K::is_fallback_required(phi_decision: UInt64, coherence_stable: UInt64, fault_code: UInt64) {
+        if phi_decision == 0 {
+            return STATUS_OK;
+        } else {
+            if coherence_stable == 1 {
+                if fault_code == FAIL_NONE {
+                    return STATUS_FALLBACK_NOT_REQUIRED;
+                } else {
+                    return STATUS_OK;
+                }
+            } else {
+                return STATUS_OK;
+            }
+        }
+    }
+
+    proc K::fallback_activation_token(round_id: UInt64, logical_time: UInt64, fault_code: UInt64, active_nodes: UInt64) {
+        if round_id == 0 {
+            return 0;
+        } else {
+            if active_nodes == 0 {
+                return 0;
+            } else {
+                return (round_id * 1000000000) + (logical_time * 100000) + (fault_code * 1000) + active_nodes;
+            }
+        }
+    }
+
+    proc K::k_round_decision(
+        node_count: UInt64,
+        threshold: UInt64,
+        capability_scope: UInt64,
+        round_id: UInt64,
+        logical_time: UInt64,
+        fault_code: UInt64,
+        p1: UInt64,
+        n1: UInt64,
+        l1: UInt64,
+        a1: UInt64,
+        p2: UInt64,
+        n2: UInt64,
+        l2: UInt64,
+        a2: UInt64,
+        p3: UInt64,
+        n3: UInt64,
+        l3: UInt64,
+        a3: UInt64
+    ) {
+        let mode_valid = XdvConsensusContracts::K::is_mode_valid(MODE_K_FALLBACK);
+        if mode_valid == STATUS_OK {
+            let cap_valid = XdvConsensusContracts::K::is_capability_valid(MODE_K_FALLBACK, capability_scope);
+            if cap_valid == STATUS_OK {
+                let quorum = XdvConsensusContracts::K::quorum_reached(node_count, node_count);
+                if quorum == STATUS_OK {
+                    let token = fallback_activation_token(round_id, logical_time, fault_code, node_count);
+                    if token == 0 {
+                        return 0;
+                    } else {
+                        return XdvConsensusReconcile::K::reconcile_decision(threshold, p1, n1, l1, a1, p2, n2, l2, a2, p3, n3, l3, a3);
+                    }
+                } else {
+                    return 0;
+                }
+            } else {
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    proc K::fallback_decision(
+        phi_decision: UInt64,
+        coherence_stable: UInt64,
+        fault_code: UInt64,
+        node_count: UInt64,
+        threshold: UInt64,
+        round_id: UInt64,
+        logical_time: UInt64,
+        p1: UInt64,
+        n1: UInt64,
+        l1: UInt64,
+        a1: UInt64,
+        p2: UInt64,
+        n2: UInt64,
+        l2: UInt64,
+        a2: UInt64,
+        p3: UInt64,
+        n3: UInt64,
+        l3: UInt64,
+        a3: UInt64
+    ) {
+        let required = is_fallback_required(phi_decision, coherence_stable, fault_code);
+        if required == STATUS_OK {
+            return k_round_decision(node_count, threshold, CAP_SCOPE_K, round_id, logical_time, fault_code, p1, n1, l1, a1, p2, n2, l2, a2, p3, n3, l3, a3);
+        } else {
+            return phi_decision;
+        }
+    }
+}

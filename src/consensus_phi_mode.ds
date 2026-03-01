@@ -1,0 +1,122 @@
+// File: consensus_phi_mode.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-consensus: PHI-assisted consensus mode for XDV-042.
+
+forge XdvConsensusPhiMode {
+
+    const STATUS_OK: UInt32 = 0;
+    const STATUS_ACTIVATION_FAILED: UInt32 = 1;
+    const STATUS_ALIGNMENT_FAILED: UInt32 = 2;
+    const STATUS_QUORUM_FAILED: UInt32 = 3;
+
+    const MODE_PHI_ASSISTED: UInt64 = 1;
+    const CAP_SCOPE_PHI: UInt64 = 4;
+
+    proc K::envelope_token(envelope_id: UInt64, node_id: UInt64, coherence_window_id: UInt64, stability_tolerance: UInt64, logical_activation_time: UInt64) {
+        let node_valid = XdvConsensusContracts::K::is_node_id_valid(node_id);
+        if node_valid == STATUS_OK {
+            if envelope_id == 0 {
+                return 0;
+            } else {
+                if coherence_window_id == 0 {
+                    return 0;
+                } else {
+                    if stability_tolerance > 100 {
+                        return 0;
+                    } else {
+                        return (envelope_id * 1000000000000) + (node_id * 1000000000) + (coherence_window_id * 1000000) + (stability_tolerance * 1000) + logical_activation_time;
+                    }
+                }
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    proc K::activation_preflight(node_count: UInt64, capability_scope: UInt64, attestation_ok: UInt64, envelope_compatible: UInt64, threshold: UInt64) {
+        let mode_valid = XdvConsensusContracts::K::is_mode_valid(MODE_PHI_ASSISTED);
+        if mode_valid == STATUS_OK {
+            let cap_valid = XdvConsensusContracts::K::is_capability_valid(MODE_PHI_ASSISTED, capability_scope);
+            if cap_valid == STATUS_OK {
+                let threshold_valid = XdvConsensusContracts::K::is_alignment_threshold_valid(threshold);
+                if threshold_valid == STATUS_OK {
+                    if attestation_ok == 1 {
+                        if envelope_compatible == 1 {
+                            let quorum = XdvConsensusContracts::K::quorum_reached(node_count, node_count);
+                            if quorum == STATUS_OK {
+                                return STATUS_OK;
+                            } else {
+                                return STATUS_QUORUM_FAILED;
+                            }
+                        } else {
+                            return STATUS_ACTIVATION_FAILED;
+                        }
+                    } else {
+                        return STATUS_ACTIVATION_FAILED;
+                    }
+                } else {
+                    return STATUS_ACTIVATION_FAILED;
+                }
+            } else {
+                return STATUS_ACTIVATION_FAILED;
+            }
+        } else {
+            return STATUS_ACTIVATION_FAILED;
+        }
+    }
+
+    proc K::phi_round_decision(
+        node_count: UInt64,
+        threshold: UInt64,
+        capability_scope: UInt64,
+        attestation_ok: UInt64,
+        envelope_compatible: UInt64,
+        p1: UInt64,
+        n1: UInt64,
+        l1: UInt64,
+        a1: UInt64,
+        p2: UInt64,
+        n2: UInt64,
+        l2: UInt64,
+        a2: UInt64,
+        p3: UInt64,
+        n3: UInt64,
+        l3: UInt64,
+        a3: UInt64
+    ) {
+        let preflight = activation_preflight(node_count, capability_scope, attestation_ok, envelope_compatible, threshold);
+        if preflight == STATUS_OK {
+            let decision = XdvConsensusReconcile::K::reconcile_decision(threshold, p1, n1, l1, a1, p2, n2, l2, a2, p3, n3, l3, a3);
+            if decision == 0 {
+                return 0;
+            } else {
+                return decision;
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    proc K::phi_alignment_metadata(round_id: UInt64, node_count: UInt64, threshold: UInt64, aggregate_alignment_score: UInt64, fault_events: UInt64) {
+        if round_id == 0 {
+            return 0;
+        } else {
+            let threshold_valid = XdvConsensusContracts::K::is_alignment_threshold_valid(threshold);
+            if threshold_valid == STATUS_OK {
+                let quorum = XdvConsensusContracts::K::quorum_reached(node_count, node_count - fault_events);
+                if quorum == STATUS_OK {
+                    if aggregate_alignment_score >= threshold {
+                        return (round_id * 1000000000) + (node_count * 1000000) + (threshold * 10000) + (aggregate_alignment_score * 100) + fault_events;
+                    } else {
+                        return 0;
+                    }
+                } else {
+                    return 0;
+                }
+            } else {
+                return 0;
+            }
+        }
+    }
+}

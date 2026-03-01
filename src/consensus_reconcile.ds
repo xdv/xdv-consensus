@@ -1,0 +1,172 @@
+// File: consensus_reconcile.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-consensus: deterministic reconciliation engine for XDV-042.
+
+forge XdvConsensusReconcile {
+
+    const STATUS_OK: UInt32 = 0;
+    const STATUS_RECONCILE_FAILED: UInt32 = 1;
+
+    // Ordering precedence for aligned proposals:
+    // 1) stable proposal ordering (proposal_id asc)
+    // 2) node identity ordering (node_id asc)
+    // 3) logical timestamp ordering (logical_ts asc)
+    proc K::proposal_order_key(proposal_id: UInt64, node_id: UInt64, logical_ts: UInt64) {
+        let node_valid = XdvConsensusContracts::K::is_node_id_valid(node_id);
+        if node_valid == STATUS_OK {
+            if proposal_id > 999999 {
+                return 0;
+            } else {
+                if logical_ts > 999999 {
+                    return 0;
+                } else {
+                    return (proposal_id * 1000000000000) + (node_id * 1000000) + logical_ts;
+                }
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    proc K::alignment_score_key(alignment_score: UInt64, proposal_key: UInt64) {
+        // Higher alignment_score is better, then smaller deterministic proposal_key wins.
+        if alignment_score > 100 {
+            return 0;
+        } else {
+            if proposal_key == 0 {
+                return 0;
+            } else {
+                return (alignment_score * 1000000000000000) + (999999999999999 - proposal_key);
+            }
+        }
+    }
+
+    proc K::resolve_two(
+        left_proposal_id: UInt64,
+        left_node: UInt64,
+        left_logical_ts: UInt64,
+        left_alignment_score: UInt64,
+        right_proposal_id: UInt64,
+        right_node: UInt64,
+        right_logical_ts: UInt64,
+        right_alignment_score: UInt64
+    ) {
+        let left_key = proposal_order_key(left_proposal_id, left_node, left_logical_ts);
+        let right_key = proposal_order_key(right_proposal_id, right_node, right_logical_ts);
+
+        if left_key == 0 {
+            if right_key == 0 {
+                return 0;
+            } else {
+                return right_proposal_id;
+            }
+        } else {
+            if right_key == 0 {
+                return left_proposal_id;
+            } else {
+                let left_score_key = alignment_score_key(left_alignment_score, left_key);
+                let right_score_key = alignment_score_key(right_alignment_score, right_key);
+                if left_score_key == 0 {
+                    if right_score_key == 0 {
+                        return 0;
+                    } else {
+                        return right_proposal_id;
+                    }
+                } else {
+                    if right_score_key == 0 {
+                        return left_proposal_id;
+                    } else {
+                        if left_score_key > right_score_key {
+                            return left_proposal_id;
+                        } else {
+                            if right_score_key > left_score_key {
+                                return right_proposal_id;
+                            } else {
+                                if left_key < right_key {
+                                    return left_proposal_id;
+                                } else {
+                                    return right_proposal_id;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    proc K::resolve_three(
+        p1: UInt64,
+        n1: UInt64,
+        l1: UInt64,
+        a1: UInt64,
+        p2: UInt64,
+        n2: UInt64,
+        l2: UInt64,
+        a2: UInt64,
+        p3: UInt64,
+        n3: UInt64,
+        l3: UInt64,
+        a3: UInt64
+    ) {
+        let winner12 = resolve_two(p1, n1, l1, a1, p2, n2, l2, a2);
+        if winner12 == 0 {
+            return resolve_two(p2, n2, l2, a2, p3, n3, l3, a3);
+        } else {
+            if winner12 == p1 {
+                return resolve_two(p1, n1, l1, a1, p3, n3, l3, a3);
+            } else {
+                return resolve_two(p2, n2, l2, a2, p3, n3, l3, a3);
+            }
+        }
+    }
+
+    proc K::reconcile_decision(
+        threshold: UInt64,
+        p1: UInt64,
+        n1: UInt64,
+        l1: UInt64,
+        a1: UInt64,
+        p2: UInt64,
+        n2: UInt64,
+        l2: UInt64,
+        a2: UInt64,
+        p3: UInt64,
+        n3: UInt64,
+        l3: UInt64,
+        a3: UInt64
+    ) {
+        let threshold_valid = XdvConsensusContracts::K::is_alignment_threshold_valid(threshold);
+        if threshold_valid == STATUS_OK {
+            let winner = resolve_three(p1, n1, l1, a1, p2, n2, l2, a2, p3, n3, l3, a3);
+            if winner == 0 {
+                return 0;
+            } else {
+                if winner == p1 {
+                    if a1 >= threshold {
+                        return p1;
+                    } else {
+                        return 0;
+                    }
+                } else {
+                    if winner == p2 {
+                        if a2 >= threshold {
+                            return p2;
+                        } else {
+                            return 0;
+                        }
+                    } else {
+                        if a3 >= threshold {
+                            return p3;
+                        } else {
+                            return 0;
+                        }
+                    }
+                }
+            }
+        } else {
+            return 0;
+        }
+    }
+}

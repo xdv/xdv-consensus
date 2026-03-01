@@ -1,0 +1,143 @@
+// File: consensus_tests.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-consensus: XDV-042 behavior tests.
+
+forge XdvConsensusTests {
+
+    const TEST_PASS: UInt32 = 0;
+    const TEST_FAIL: UInt32 = 1;
+
+    const STATUS_OK: UInt32 = 0;
+
+    const MODE_PHI_ASSISTED: UInt64 = 1;
+
+    const FAIL_COHERENCE_INSTABILITY: UInt64 = 1;
+
+    proc K::expect_u32(actual: UInt32, expected: UInt32) {
+        if actual == expected {
+            return TEST_PASS;
+        } else {
+            return TEST_FAIL;
+        }
+    }
+
+    proc K::expect_u64(actual: UInt64, expected: UInt64) {
+        if actual == expected {
+            return TEST_PASS;
+        } else {
+            return TEST_FAIL;
+        }
+    }
+
+    proc K::combine(lhs: UInt32, rhs: UInt32) {
+        if lhs == TEST_PASS {
+            return rhs;
+        } else {
+            return TEST_FAIL;
+        }
+    }
+
+    proc K::test_deterministic_reconciliation_engine() {
+        let d1 = XdvConsensusReconcile::K::reconcile_decision(
+            70,
+            11, 4, 200, 81,
+            12, 5, 199, 81,
+            13, 6, 198, 79
+        );
+        let d2 = XdvConsensusReconcile::K::reconcile_decision(
+            70,
+            11, 4, 200, 81,
+            12, 5, 199, 81,
+            13, 6, 198, 79
+        );
+
+        let tie_break = XdvConsensusReconcile::K::resolve_two(99, 10, 500, 88, 98, 9, 500, 88);
+
+        let t1 = expect_u64(d1, d2);
+        let t2 = expect_u64(tie_break, 98);
+
+        let u1 = combine(t1, t2);
+        if d1 == 0 {
+            return TEST_FAIL;
+        } else {
+            return u1;
+        }
+    }
+
+    proc K::test_phi_assisted_and_k_fallback_modes() {
+        let phi_decision_ok = XdvConsensusPhiMode::K::phi_round_decision(
+            4,
+            70,
+            4,
+            1,
+            1,
+            21, 4, 100, 90,
+            22, 5, 100, 88,
+            23, 6, 101, 87
+        );
+
+        let fallback_decision = XdvConsensusKFallback::K::fallback_decision(
+            0,
+            0,
+            FAIL_COHERENCE_INSTABILITY,
+            4,
+            70,
+            1,
+            100,
+            21, 4, 100, 90,
+            22, 5, 100, 88,
+            23, 6, 101, 87
+        );
+
+        if phi_decision_ok == 0 {
+            return TEST_FAIL;
+        } else {
+            if fallback_decision == 0 {
+                return TEST_FAIL;
+            } else {
+                return TEST_PASS;
+            }
+        }
+    }
+
+    proc K::test_replay_equivalent_decisions() {
+        let phi_decision = XdvConsensusPhiMode::K::phi_round_decision(
+            4,
+            70,
+            4,
+            1,
+            1,
+            31, 4, 300, 91,
+            32, 5, 300, 89,
+            33, 6, 301, 88
+        );
+
+        if phi_decision == 0 {
+            return TEST_FAIL;
+        } else {
+            let alignment_meta = XdvConsensusPhiMode::K::phi_alignment_metadata(5, 4, 70, 90, 0);
+            if alignment_meta == 0 {
+                return TEST_FAIL;
+            } else {
+                let record = XdvConsensusReplay::K::decision_record_token(5, MODE_PHI_ASSISTED, phi_decision, 300, 4, 70, 0, alignment_meta);
+                if record == 0 {
+                    return TEST_FAIL;
+                } else {
+                    let replay_same = XdvConsensusReplay::K::consensus_round_replay_check(5, MODE_PHI_ASSISTED, phi_decision, phi_decision, 300, 4, 70, 0, alignment_meta);
+                    let rebuild = XdvConsensusReplay::K::rebuild_and_compare(5, MODE_PHI_ASSISTED, phi_decision, 300, 4, 70, 0, alignment_meta, record);
+
+                    let t1 = expect_u32(replay_same, STATUS_OK);
+                    let t2 = expect_u32(rebuild, STATUS_OK);
+                    return combine(t1, t2);
+                }
+            }
+        }
+    }
+
+    proc K::run_all_tests() {
+        let t1 = test_deterministic_reconciliation_engine();
+        let t2 = combine(t1, test_phi_assisted_and_k_fallback_modes());
+        return combine(t2, test_replay_equivalent_decisions());
+    }
+}
